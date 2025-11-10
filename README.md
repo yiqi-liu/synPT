@@ -7,7 +7,7 @@ In the directory `code`:
 - `all-func.R` provides the code for implementing the inference procedure in Section 4 and constructing the DGPs detailed in Section 5.
 - `prep-data.R` produces `cps_rep_cross_sec.csv`, the cleaned CPS repeated cross-sectional sample used for generating data in the simulation designs.
 
-All results will be directly printed in the RStudio console and also saved to the directory `result`. The results in Table 1 of the paper is run on
+All results will be directly printed in the RStudio console and also saved to the directory `result`. The results in Table 1 of the paper is run under
 ```
 R version 4.4.1 (2024-06-14)
 Platform: aarch64-apple-darwin20
