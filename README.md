@@ -19,4 +19,4 @@ LAPACK: /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRlap
 ```
 
 ## Note on Reproducibility
-Even with an identical random R seed, exact reproducibility across computing platforms is not guaranteed. Small discrepancies may arise from differences in floating-point arithmetic, BLAS/LAPACK implementations, package or R version differences, or the behavior of numerical solvers and multithreaded operations. However, since all reported results are averaged over 1000 Monte Carlo replications, platform-specific numerical variation is expected to have no qualitative effect on the conclusions of the paper.
+Even with an identical random R seed, exact reproducibility across computing platforms is not guaranteed. Small discrepancies may arise from differences in floating-point arithmetic, BLAS/LAPACK implementations, package or R version differences, or the behavior of numerical solvers and multithreaded operations. However, since all reported results are averaged over 1000 Monte Carlo replications, platform-specific numerical variation is expected to have no qualitative effect on the conclusions in Section 5 of the paper.
