@@ -19,4 +19,20 @@ LAPACK: /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRlap
 ```
 
 ## Note on Reproducibility
-Even with an identical random R seed, exact numerical reproducibility across computing platforms is not guaranteed. Small discrepancies may arise from differences in floating-point arithmetic, BLAS/LAPACK implementations, package or R version differences, or the behavior of numerical solvers and multithreaded operations. For example, the first [arXiv](https://arxiv.org/abs/2511.05870v1) version of the paper used the default [OSQP](https://github.com/osqp) settings for optimization parameters that adaptively update based on computation time, which varies across platforms; see the discussion [here](https://github.com/osqp/osqp-r/issues/19#issuecomment-636954982) for more information. The [latest version](https://drive.google.com/file/d/1MD1JSP1aNwMH1MtrSSLZH9HQFjY-bNlD/view?usp=sharing) of the paper fixes this potential source of variability and also increases the number of Monte Carlo replications from 500 to 1000 to further reduce the influence of platform-specific numerical differences. Any remaining discrepancies are expected to be minor and unlikely to affect the qualitative conclusions in Section 5.
+Even with an identical random R seed, exact numerical reproducibility across computing platforms is not guaranteed. Small discrepancies may arise from differences in floating-point arithmetic, BLAS/LAPACK implementations, package or R version differences, or the behavior of numerical solvers and multithreaded operations. 
+
+For example, the first [arXiv](https://arxiv.org/abs/2511.05870v1) version of the paper used the default [OSQP](https://github.com/osqp) settings for optimization parameters that adaptively update based on computation time, which varies across platforms; see the discussion [here](https://github.com/osqp/osqp-r/issues/19#issuecomment-636954982) for more detail. The [latest version](https://drive.google.com/file/d/1MD1JSP1aNwMH1MtrSSLZH9HQFjY-bNlD/view?usp=sharing) of the paper fixes this source of variability by setting `adaptive_rho_interval=50` in `osqp::osqpSettings`, which disables the time-based adaptation. 
+
+Another source of platform-specific variation appears in `simulation-PT.R` during the construction of DGP-2, which introduces a violation of post-treatment parallel trends. The relevant code snippet is:
+```
+for (trial in 1:20000){
+  # try a different a_post that has more dispersion so we get a meaningful violation of post-trend
+  a_post_alt <- a_post + rnorm(length(a_post), 0, 4*se_pt[length(se_pt)]) 
+  # set violation of post-trend to be 2x se from event study
+  get_w_alt <- get_alt_omega(A_pre, b_pre, a_post_alt, pi_0,
+                             delta_target=2*se_pt[length(se_pt)])
+  if(!is.null(get_w_alt$w_alt)) break
+}
+```
+This loop searches for an alternative weight vector `w_alt` that (i) preserves parallel pre-trends and (ii) produces a post-treatment violation of parallel trends at least twice the DID standard error.
+Whether `get_w_alt$w_alt` is `NULL` in a given `trial` depends on numerical factors such as BLAS/LAPACK precision (e.g., Apple Accelerate vs. OpenBLAS), small differences in QP solver tolerances, and finite-precision feasibility checks inside `get_alt_omega()`. If one platform exits the loop earlier than another (e.g., success at different values of `trial`), then that platform consumes a different number of `rnorm()` draws. This desynchronizes the global random number stream, so all subsequent random elements of that Monte Carlo replication follow different random sequences. The [latest version](https://drive.google.com/file/d/1MD1JSP1aNwMH1MtrSSLZH9HQFjY-bNlD/view?usp=sharing) of the paper reduces this source of platform-dependent randomness by setting a new seed `set.seed(iter)` at the beginning of each Monte Carlo replication `iter`, preventing numerical differences inside the loop above from affecting the remainder of the simulation, and also increases the number of Monte Carlo replications from 500 to 1000 to further decrease the influence of platform-specific numerical differences. Any remaining discrepancies are expected to be minor and unlikely to affect the qualitative conclusions in Section 5.
