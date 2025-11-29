@@ -23,7 +23,7 @@ Even with an identical random R seed, exact numerical reproducibility across com
 
 For example, the first [arXiv](https://arxiv.org/abs/2511.05870v1) version of the paper used the default [OSQP](https://github.com/osqp) settings for optimization parameters that adaptively update based on computation time, which varies across platforms; see the discussion [here](https://github.com/osqp/osqp-r/issues/19#issuecomment-636954982) for more detail. The [latest version](https://drive.google.com/file/d/1MD1JSP1aNwMH1MtrSSLZH9HQFjY-bNlD/view?usp=sharing) of the paper fixes this source of variability by setting `adaptive_rho_interval=50` in `osqp::osqpSettings`, which disables the time-based adaptation. 
 
-Another source of platform-specific variation appears in `simulation-PT.R` during the construction of DGP-2, which introduces a violation of post-treatment parallel trends. The relevant code snippet is:
+Another source of platform-specific variation appears in `simulation-PT.R` during the construction of DGP-2, which introduces violations of post-treatment parallel trends. The relevant code snippet is:
 ```
 for (trial in 1:20000){
   # try a different a_post that has more dispersion so we get a meaningful violation of post-trend
