@@ -1,4 +1,4 @@
-# generate fake repeated cross-sectional sample for control units
+# generate simulation micro-level sample for control units
 # DGP-1: PT==TRUE  & SDID==FALSE
 # DGP-2: PT==FALSE & SDID==FALSE
 # DGP-3: PT==FALSE & SDID==TRUE
