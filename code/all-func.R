@@ -1,7 +1,7 @@
-# generate simulation micro-level sample for control units
+# generate simulation micro-level data for control units
 # DGP-1: PT==TRUE  & SDID==FALSE
 # DGP-2: PT==FALSE & SDID==FALSE
-# DGP-3: PT==FALSE & SDID==TRUE
+# DGP-3 & DGP-4: PT==FALSE & SDID==TRUE
 gen_micro_data_control <- function(k, t=NULL, n, 
                                    PT=TRUE, SDID=FALSE, Sigma){
   if (PT & SDID) stop(paste0("Only one DGP specification is allowed."))
@@ -16,7 +16,7 @@ gen_micro_data_control <- function(k, t=NULL, n,
     
     tibble(G_i=k, T_i=t, D_i=0,
            Y_i=rnorm(n, m, s))
-  } else { # create panel for DGP-3
+  } else { # create panel for DGP-3 & DGP-4
     Y_it <- rmvnorm(n, mean = L[k, ], sigma = n*Sigma, method = "chol") # n by 40
     colnames(Y_it) <- 1979:2018
     
@@ -65,7 +65,7 @@ gen_trt_unit <- function(trt_idx, pi_0=NULL, PT=TRUE){
               pi_0=pi_0, pi_1=pi_1))
 }
 
-# generate repeated cross-sectional sample for the treated unit
+# generate simulation micro-level data for the treated unit
 gen_micro_data_trt <- function(trt_info=NULL, k, t=NULL, n, true_tau, 
                                SDID=FALSE, Sigma){
   if (!SDID){
@@ -83,7 +83,7 @@ gen_micro_data_trt <- function(trt_info=NULL, k, t=NULL, n, true_tau,
       tibble(G_i=50+k, T_i=t, D_i=1, # assign temporary group id=50+k
              Y_i=rnorm(n, m, s))
     }
-  } else{ # create panel for DGP-3
+  } else{ # create panel for DGP-3 & DGP-4
     L_mod <- L
     L_mod[k, 40] <- L_mod[k, 40] + true_tau # add tau to last year
     
