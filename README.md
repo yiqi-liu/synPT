@@ -1,4 +1,4 @@
-## Replication Files for [Synthetic Parallel Trends](https://drive.google.com/file/d/1MD1JSP1aNwMH1MtrSSLZH9HQFjY-bNlD/view?usp=sharing)
+## Replication Files for [*Synthetic Parallel Trends*](https://drive.google.com/file/d/1MD1JSP1aNwMH1MtrSSLZH9HQFjY-bNlD/view?usp=sharing)
 Please download the replication package, [synthdid-sdid-paper](https://www.openicpsr.org/openicpsr/project/146381/version/V1/view), provided by [Arkhangelsky, Athey, Hirshberg, Imbens, and Wager (2021)](https://www.aeaweb.org/articles?id=10.1257/aer.20190159). Place the entire downloaded folder `synthdid-sdid-paper` in the directory `code`.
 
 In the directory `code`:
