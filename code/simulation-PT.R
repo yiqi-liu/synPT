@@ -11,6 +11,7 @@ library(CVXR)
 library(synthdid)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("all-func.R")
+RNGkind("Mersenne-Twister", "Inversion", "Rejection")
 set.seed(0)
 
 # read repeated cross-sectional data; see 'code/prep-data.R' for how this data is generated
@@ -53,9 +54,9 @@ simulate_dgp = function(parameters, N1, T1){
   T0 <- T_ - T1
   
   L <- F_ + M
-  E <- mvtnorm::rmvnorm(N, sigma = Sigma)
-  Y =  L + E 
   #### ------ START OF MODIFICATION ------
+  E <- mvtnorm::rmvnorm(N, sigma = Sigma, method = "chol")
+  Y =  L + E 
   return(list(Y=Y[order(assignment),], L=L[order(assignment),], E=E[order(assignment),], N0=N0, T0=T0, assignment=assignment))
   #### ------ END OF MODIFICATION ------ 
   # order units by treatment, so treated units are at the bottom of our data matrix in accordance with our convention
@@ -66,7 +67,7 @@ factor_model=estimate_dgp(Y.wage, w.minwage, rank=4)
 
 # simulation configuration
 true_tau <- 0 # null effect
-num_MC <- 500
+num_MC <- 1000
 cand_tau_size <- 500
 num_bstp_rep <- 1000
 cand_tau_PT <- NULL
@@ -99,6 +100,7 @@ result_sc <- result_sc %>%
 
 #### ---- simulation starts -----
 for (iter in 1:num_MC){
+  set.seed(iter)
   print(paste0("iter:  ", iter))
   start <- Sys.time()
   ### START: DGP-1 treated unit is one state, PT is satisfied ----
@@ -281,23 +283,26 @@ for (iter in 1:num_MC){
   time_elapsed_spt <- as.numeric(difftime(time_end, time_start, units = "secs"))
   cs_tau <- method_spt$cand_tau[method_spt$rej==0]
   
-  # for future iterations, candidate values of tau for the next iteration are based on enlarging current iteration's cs_tau
-  # double the distance from the midpoint (symmetric expansion)
-  a <- min(cs_tau)
-  b <- max(cs_tau)
-  mid <- (a+b)/2
-  len <- b-a
-  a <- mid-len
-  b <- mid+len
-  cand_tau_PT <- a+(b-a)*
-    qbeta(seq(0, 1, length.out = cand_tau_size), shape1 = 2, shape2 = 2)
+  # for future iterations, candidate values of tau for the next iteration are based on enlarging current iteration's cs_tau, if nonempty
+  if (length(cs_tau)>0){
+    # double the distance from the midpoint (symmetric expansion)
+    a <- min(cs_tau)
+    b <- max(cs_tau)
+    mid <- (a+b)/2
+    len <- b-a
+    a <- mid-len
+    b <- mid+len
+    cand_tau_PT <- a+(b-a)*
+      qbeta(seq(0, 1, length.out = cand_tau_size), shape1 = 2, shape2 = 2)
+  }
+  
   
   # collect results
   result_spt <- bind_rows(
     result_spt,
-    list("2018" = min(cs_tau), type = "cs_lb", DGP = 1, niter=iter),
-    list("2018" = max(cs_tau), type = "cs_ub", DGP = 1, niter=iter),
-    list("2018" = as.numeric(true_tau <= max(cs_tau) & true_tau >= min(cs_tau)), type = "coverage", DGP = 1, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, min(cs_tau), -99), type = "cs_lb", DGP = 1, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, max(cs_tau), -99), type = "cs_ub", DGP = 1, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, as.numeric(true_tau <= max(cs_tau) & true_tau >= min(cs_tau)), 0), type = "coverage", DGP = 1, niter=iter),
     list("2018" = time_elapsed_spt, type = "time", DGP = 1, niter=iter)
   )
   frac_rej_PT <- append(frac_rej_PT, 1-length(cs_tau)/cand_tau_size)
@@ -511,23 +516,25 @@ for (iter in 1:num_MC){
   time_elapsed_spt <- as.numeric(difftime(time_end, time_start, units = "secs"))
   cs_tau <- method_spt$cand_tau[method_spt$rej==0]
   
-  # for future iterations, candidate values of tau for the next iteration are based on enlarging current iteration's cs_tau
-  # double the distance from the midpoint (symmetric expansion)
-  a <- min(cs_tau)
-  b <- max(cs_tau)
-  mid <- (a+b)/2
-  len <- b-a
-  a <- mid-len
-  b <- mid+len
-  cand_tau_noPT <- a+(b-a)*
-    qbeta(seq(0, 1, length.out = cand_tau_size), shape1 = 2, shape2 = 2)
+  # for future iterations, candidate values of tau for the next iteration are based on enlarging current iteration's cs_tau, if nonempty
+  if (length(cs_tau)>0){
+    # double the distance from the midpoint (symmetric expansion)
+    a <- min(cs_tau)
+    b <- max(cs_tau)
+    mid <- (a+b)/2
+    len <- b-a
+    a <- mid-len
+    b <- mid+len
+    cand_tau_noPT <- a+(b-a)*
+      qbeta(seq(0, 1, length.out = cand_tau_size), shape1 = 2, shape2 = 2)
+  }
   
   # collect results
   result_spt <- bind_rows(
     result_spt,
-    list("2018" = min(cs_tau), type = "cs_lb", DGP = 2, niter=iter),
-    list("2018" = max(cs_tau), type = "cs_ub", DGP = 2, niter=iter),
-    list("2018" = as.numeric(true_tau <= max(cs_tau) & true_tau >= min(cs_tau)), type = "coverage", DGP = 2, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, min(cs_tau), -99), type = "cs_lb", DGP = 2, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, max(cs_tau), -99), type = "cs_ub", DGP = 2, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, as.numeric(true_tau <= max(cs_tau) & true_tau >= min(cs_tau)), 0), type = "coverage", DGP = 2, niter=iter),
     list("2018" = time_elapsed_spt, type = "time", DGP = 2, niter=iter)
   )
   frac_rej_noPT <- append(frac_rej_noPT, 1-length(cs_tau)/cand_tau_size)

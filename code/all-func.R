@@ -17,7 +17,7 @@ gen_micro_data_control <- function(k, t=NULL, n,
     tibble(G_i=k, T_i=t, D_i=0,
            Y_i=rnorm(n, m, s))
   } else { # create panel for DGP-3
-    Y_it <- rmvnorm(n, mean = L[k, ], sigma = n*Sigma) # n by 40
+    Y_it <- rmvnorm(n, mean = L[k, ], sigma = n*Sigma, method = "chol") # n by 40
     colnames(Y_it) <- 1979:2018
     
     dta <- as_tibble(Y_it) %>%
@@ -87,7 +87,7 @@ gen_micro_data_trt <- function(trt_info=NULL, k, t=NULL, n, true_tau,
     L_mod <- L
     L_mod[k, 40] <- L_mod[k, 40] + true_tau # add tau to last year
     
-    Y_it <- rmvnorm(n, mean = L_mod[k, ], sigma = n*Sigma) # n by 40
+    Y_it <- rmvnorm(n, mean = L_mod[k, ], sigma = n*Sigma, method = "chol") # n by 40
     
     colnames(Y_it) <- 1979:2018
     
@@ -167,7 +167,9 @@ tau_set <- function(outcome,  # 1 by n vector of outcomes
     q = as.numeric(q_base),
     A = as(simplex_constr, "dgCMatrix"),
     l = l, u = u,
-    osqpSettings(verbose = FALSE, polish=TRUE)
+    osqpSettings(verbose = FALSE, polish=TRUE,
+                 adaptive_rho_interval = 50 # for reproducibility; see https://github.com/osqp/osqp-r/issues/19#issuecomment-636954982
+                 )
   )
   
   # create candidate values for tau if not specified
@@ -271,7 +273,9 @@ tau_set <- function(outcome,  # 1 by n vector of outcomes
         q = as.numeric(eval_q_base),
         A = as(simplex_constr, "dgCMatrix"),
         l = l, u = u,
-        osqpSettings(verbose = FALSE)
+        osqpSettings(verbose = FALSE,
+                     adaptive_rho_interval = 50 # for reproducibility; see https://github.com/osqp/osqp-r/issues/19#issuecomment-636954982
+                     )
       )
       
       # initialize vector to store bootstrapped test statistic
@@ -353,7 +357,9 @@ gen_cand_tau <- function(A_pre, # (T_0-1 by K_0) control pre-trends matrix
       q = as.numeric(-crossprod(A_pre, b_pre)), # -A_pre'b_pre
       A = constr_simplex,
       l = l_simplex, u = u_simplex,
-      osqpSettings(verbose = FALSE, polish = TRUE)
+      osqpSettings(verbose = FALSE, polish = TRUE,
+                   adaptive_rho_interval = 50 # for reproducibility; see https://github.com/osqp/osqp-r/issues/19#issuecomment-636954982
+                   )
     )
     
     res_tol <- QP_tol$Solve()
@@ -384,7 +390,9 @@ gen_cand_tau <- function(A_pre, # (T_0-1 by K_0) control pre-trends matrix
              l = as.numeric(l),
              u = as.numeric(u),
              osqpSettings(verbose = FALSE, polish = TRUE, 
-                          max_iter = 200000, adaptive_rho = TRUE)
+                          max_iter = 200000,
+                          adaptive_rho_interval = 50 # for reproducibility; see https://github.com/osqp/osqp-r/issues/19#issuecomment-636954982
+                          )
              )
   
   # min a_post'w
@@ -464,7 +472,9 @@ get_alt_omega <- function(A_pre, b_pre, a_post, pi_0,
       l = as.numeric(l),
       u = as.numeric(u),
       osqpSettings(verbose = verbose, polish = TRUE,
-                   eps_abs = 1e-8, eps_rel = 1e-8, max_iter = 200000)
+                   eps_abs = 1e-8, eps_rel = 1e-8, max_iter = 200000,
+                   adaptive_rho_interval = 50 # for reproducibility; see https://github.com/osqp/osqp-r/issues/19#issuecomment-636954982
+                   )
     )
     res <- model$Solve()
     if (!(res$info$status_val %in% c(1L, 2L))) return(NULL)
@@ -472,7 +482,7 @@ get_alt_omega <- function(A_pre, b_pre, a_post, pi_0,
     w <- res$x
     delta <- abs(as.numeric(crossprod(a_post, w-pi_0)))
     
-    if (delta >= delta_target) return(list(w = w, delta = delta))
+    if (round(delta-delta_target, 5) >= 0) return(list(w = w, delta = delta))
     return(NULL)
   }
   

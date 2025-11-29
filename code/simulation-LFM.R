@@ -12,6 +12,7 @@ library(mvtnorm)
 library(pracma)
 library(synthdid)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+RNGkind("Mersenne-Twister", "Inversion", "Rejection")
 source("all-func.R")
 set.seed(0)
 
@@ -41,21 +42,23 @@ w.minwage = last.col(panel.matrices(data.frame(cell_stats), treatment='min_wage'
 
 # the following function from synthdid-sdid-paper/R/placebo-simulations.R is modified to return the assignment information
 simulate_dgp = function(parameters, N1, T1){
-  F=parameters$F
+  F_=parameters$F
   M=parameters$M
   Sigma = parameters$Sigma
   pi = parameters$pi
   
   N <- nrow(M)
-  T <- ncol(M)
+  T_ <- ncol(M)
   
   assignment <- randomize_treatment(pi,N,N1)
   N1 <- sum(assignment)
   N0 <- N - N1
-  T0 <- T - T1
+  T0 <- T_ - T1
   
-  Y = F + M + rmvnorm(N, sigma = Sigma)
+  L <- F_ + M
   #### ------ START OF MODIFICATION ------
+  E <- mvtnorm::rmvnorm(N, sigma = Sigma, method = "chol")
+  Y =  L + E 
   rownames(Y) <- 1:50
   # return(list(Y=Y[order(assignment), ], N0=N0, T0=T0))
   return(list(Y=Y[order(assignment), ], N0=N0, T0=T0, assignment=assignment))
@@ -104,7 +107,7 @@ print(paste0("There are ", sum(convex_state), " states that can be expressed as 
 
 # simulation configuration
 true_tau <- 0 # null effect
-num_MC <- 500
+num_MC <- 1000
 cand_tau_size <- 500
 num_bstp_rep <- 1000
 cand_tau_SDID <- NULL
@@ -136,6 +139,7 @@ result_sc <- result_sc %>%
 
 #### ---- simulation starts -----
 for (iter in 1:num_MC){
+  set.seed(iter)
   print(paste0("iter:  ", iter))
   start <- Sys.time()
   ### START: DGP-3 treated unit is one state, many weights are valid pre and post ----
@@ -269,8 +273,8 @@ for (iter in 1:num_MC){
   time_start <- Sys.time()
   
   method_sc <- sc_estimate(factor_model_1tr$Y, 
-                             factor_model_1tr$N0,
-                             factor_model_1tr$T0)
+                           factor_model_1tr$N0,
+                           factor_model_1tr$T0)
   tau_sc <- summary(method_sc)$estimate
   se_sc <- sqrt(vcov(method_sc, method='placebo'))
   
@@ -307,23 +311,25 @@ for (iter in 1:num_MC){
   time_elapsed_spt <- as.numeric(difftime(time_end, time_start, units = "secs"))
   cs_tau <- method_spt$cand_tau[method_spt$rej==0]
   
-  # for future iterations, candidate values of tau for the next iteration are based on enlarging current iteration's cs_tau
-  # double the distance from the midpoint (symmetric expansion)
-  a <- min(cs_tau)
-  b <- max(cs_tau)
-  mid <- (a+b)/2
-  len <- b-a
-  a <- mid-len
-  b <- mid+len
-  cand_tau_SDID <- a+(b-a)*
-    qbeta(seq(0, 1, length.out = cand_tau_size), shape1 = 2, shape2 = 2)
+  # for future iterations, candidate values of tau for the next iteration are based on enlarging current iteration's cs_tau, if nonempty
+  if (length(cs_tau)>0){
+    # double the distance from the midpoint (symmetric expansion)
+    a <- min(cs_tau)
+    b <- max(cs_tau)
+    mid <- (a+b)/2
+    len <- b-a
+    a <- mid-len
+    b <- mid+len
+    cand_tau_SDID <- a+(b-a)*
+      qbeta(seq(0, 1, length.out = cand_tau_size), shape1 = 2, shape2 = 2)
+  }
   
   # collect results
   result_spt <- bind_rows(
     result_spt,
-    list("2018" = min(cs_tau), type = "cs_lb", DGP = 3, niter=iter),
-    list("2018" = max(cs_tau), type = "cs_ub", DGP = 3, niter=iter),
-    list("2018" = as.numeric(true_tau <= max(cs_tau) & true_tau >= min(cs_tau)), type = "coverage", DGP = 3, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, min(cs_tau), -99), type = "cs_lb", DGP = 3, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, max(cs_tau), -99), type = "cs_ub", DGP = 3, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, as.numeric(true_tau <= max(cs_tau) & true_tau >= min(cs_tau)), 0), type = "coverage", DGP = 3, niter=iter),
     list("2018" = time_elapsed_spt, type = "time", DGP = 3, niter=iter)
   )
   frac_rej_SDID <- append(frac_rej_SDID, 1-length(cs_tau)/cand_tau_size)
@@ -438,7 +444,7 @@ for (iter in 1:num_MC){
   
   
   ## START: SDID ------------------------------------
-  Y <- L + rmvnorm(50, sigma = Sigma)
+  Y <- L + rmvnorm(50, sigma = Sigma, method = "chol")
   Y <- Y[order(trt_idx), ]
   
   time_start <- Sys.time()
@@ -505,34 +511,34 @@ for (iter in 1:num_MC){
   time_elapsed_spt <- as.numeric(difftime(time_end, time_start, units = "secs"))
   cs_tau <- method_spt$cand_tau[method_spt$rej==0]
   
-  # for future iterations, candidate values of tau for the next iteration are based on enlarging current iteration's cs_tau
-  # double the distance from the midpoint (symmetric expansion)
-  a <- min(cs_tau)
-  b <- max(cs_tau)
-  mid <- (a+b)/2
-  len <- b-a
-  a <- mid-len
-  b <- mid+len
-  cand_tau_noSDID <- a+(b-a)*
-    qbeta(seq(0, 1, length.out = cand_tau_size), shape1 = 2, shape2 = 2)
+  # for future iterations, candidate values of tau for the next iteration are based on enlarging current iteration's cs_tau, if nonempty
+  if (length(cs_tau)>0){
+    # double the distance from the midpoint (symmetric expansion)
+    a <- min(cs_tau)
+    b <- max(cs_tau)
+    mid <- (a+b)/2
+    len <- b-a
+    a <- mid-len
+    b <- mid+len
+    cand_tau_noSDID <- a+(b-a)*
+      qbeta(seq(0, 1, length.out = cand_tau_size), shape1 = 2, shape2 = 2) 
+  }
   
   # collect results
   result_spt <- bind_rows(
     result_spt,
-    list("2018" = min(cs_tau), type = "cs_lb", DGP = 4, niter=iter),
-    list("2018" = max(cs_tau), type = "cs_ub", DGP = 4, niter=iter),
-    list("2018" = as.numeric(true_tau <= max(cs_tau) & true_tau >= min(cs_tau)), type = "coverage", DGP = 4, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, min(cs_tau), -99), type = "cs_lb", DGP = 4, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, max(cs_tau), -99), type = "cs_ub", DGP = 4, niter=iter),
+    list("2018" = ifelse(length(cs_tau)>0, as.numeric(true_tau <= max(cs_tau) & true_tau >= min(cs_tau)), 0), type = "coverage", DGP = 4, niter=iter),
     list("2018" = time_elapsed_spt, type = "time", DGP = 4, niter=iter)
   )
   frac_rej_noSDID <- append(frac_rej_noSDID, 1-length(cs_tau)/cand_tau_size)
   ## END: SPT ------------------------------------
-  
-  
-  ### END: DGP-noSDID1 treated unit is one state, many weights are valid pre but only a sparse weight is valid post ----
+  ### END: DGP-4 treated unit is one state, many weights are valid pre but only a sparse weight is valid post ----
   
   end <- Sys.time()
   
-  print(paste0("SDID1: ----------------------"))
+  print(paste0("DGP-3: Many valid weights pre AND post ------------"))
   print(paste0("PT-DID avg bias: ", mean(abs(true_tau-subset(result_pt, type=="est" & DGP==3)$`2018`))))
   print(paste0("PT-DID avg bias (DiM): ", mean(abs(true_tau-subset(result_pt, type=="est_dim" & DGP==3)$`2018`))))
   print(paste0("PT-DID avg CI length: ", 1.96*2*mean(subset(result_pt, type=="se" & DGP==3)$`2018`)))
@@ -555,7 +561,7 @@ for (iter in 1:num_MC){
   print(paste0("SPT coverage rate: ", mean(subset(result_spt, type=="coverage" & DGP==3)$`2018`)))
   print(paste0("SPT avg time: ", mean(subset(result_spt, type=="time" & DGP==3)$`2018`)))
   print(paste0("frac cand_tau rej: ", mean(frac_rej_SDID)))
-  print(paste0("noSDID1: ----------------------"))
+  print(paste0("DGP-4: Many valid weights pre but NOT post ------------"))
   print(paste0("PT-DID avg bias: ", mean(abs(true_tau-subset(result_pt, type=="est" & DGP==4)$`2018`))))
   print(paste0("PT-DID avg bias (DiM): ", mean(abs(true_tau-subset(result_pt, type=="est_dim" & DGP==4)$`2018`))))
   print(paste0("PT-DID avg CI length: ", 1.96*2*mean(subset(result_pt, type=="se" & DGP==4)$`2018`)))
